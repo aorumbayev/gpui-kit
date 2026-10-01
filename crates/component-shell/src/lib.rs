@@ -62,8 +62,14 @@ fn open_window_with_root(
     Ok(handle.into())
 }
 
-/// Registers this crate's descriptors into its private catalog assembly.
-fn register(registry: &mut gpui_shell::ComponentRegistry) -> Result<(), gpui_shell::RegistryError> {
+/// Registers this crate's descriptors into `registry`.
+///
+/// A host that adds components of its own builds one [`gpui_shell::ComponentRegistry`],
+/// registers this catalog and its own into it, then freezes it. [`components`]
+/// is the same catalog on its own.
+pub fn register(
+    registry: &mut gpui_shell::ComponentRegistry,
+) -> Result<(), gpui_shell::RegistryError> {
     shell::register(registry)
 }
 
@@ -205,6 +211,32 @@ mod tests {
         cx.update(|cx| gpui_shell::init_with_components(cx, &components));
 
         cx.read(|cx| assert!(cx.has_global::<gpui_component::Theme>()));
+    }
+
+    #[test]
+    fn register_adds_the_catalog_to_a_host_registry() {
+        let mut registry = ComponentRegistry::new(
+            COMPONENT_REGISTRY_API_VERSION,
+            gpui_shell::DEFAULT_COMPONENT_MODULE,
+        )
+        .unwrap();
+        registry
+            .register_state(gpui_shell::StateDescriptor::new(
+                "HostState",
+                "HostState",
+                vec![],
+                |_, _, _| Ok(Box::new(())),
+            ))
+            .unwrap();
+
+        crate::register(&mut registry).unwrap();
+
+        let frozen = registry.freeze().unwrap();
+        assert!(
+            frozen
+                .descriptors()
+                .any(|descriptor| descriptor.name() == "Spinner")
+        );
     }
 
     #[test]
